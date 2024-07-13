@@ -63,6 +63,15 @@
             border-radius: 0.5rem;
         }
 
+        .todo.dragging {
+            opacity: 0.5;
+            background-color: lightblue;
+        }
+
+        .todo.over {
+            border-top: 2px solid blue;
+        }
+
         .todo button {
             width: 30%;
             margin: 10px 10px;
@@ -145,11 +154,11 @@
         const input = document.querySelector('.input');
         const button = document.querySelector('.button');
         const todoDiv = document.querySelector('.todos');
-        let lastDraggedTodo = null; // Track the last dragged todo
+        let draggedElement = null;
 
         button.addEventListener('click', (event) => {
             let todo = input.value.trim();
-            if (todo == '') {
+            if (todo === '') {
                 alert("Please enter something");
                 return;
             }
@@ -162,7 +171,7 @@
 
             const newTodo = document.createElement('div');
             newTodo.draggable = true;
-            newTodo.classList.add('todo'); // Add a class for styling if needed
+            newTodo.classList.add('todo');
 
             const todoText = document.createElement('h3');
             todoText.textContent = todo;
@@ -186,17 +195,12 @@
             });
 
             newTodo.addEventListener('dragstart', (event) => {
-                event.dataTransfer.setData('text/plain', event.target.id);
-                event.dataTransfer.effectAllowed = 'move'; // Specify the operation allowed for the drag
-                event.target.style.opacity = '0.5';
-                lastDraggedTodo = event.target; // Store the dragged todo element
-                lastDraggedTodoIndex = Array.from(todoDiv.children).indexOf(event.target); // Store the index of the dragged todo
-                event.target.style.backgroundColor = 'lightblue'; // Apply a visual effect (e.g., change background color)
+                draggedElement = event.target;
+                event.target.classList.add('dragging');
             });
 
             newTodo.addEventListener('dragend', (event) => {
-                event.target.style.opacity = ''; // Reset opacity after drag ends
-                event.target.style.backgroundColor = 'white'; // Apply a visual effect (e.g., change background color)
+                event.target.classList.remove('dragging');
             });
 
             newTodo.id = 'todo-' + Date.now();
@@ -210,33 +214,55 @@
             input.value = '';
         });
 
-        // Handle dragover and drop events on the todoDiv itself
         todoDiv.addEventListener('dragover', (event) => {
-            event.preventDefault(); // Prevent default drop behavior
+            event.preventDefault();
+
+            const draggingElement = document.querySelector('.dragging');
+            const afterElement = getDragAfterElement(todoDiv, event.clientY);
+            if (afterElement == null) {
+                todoDiv.appendChild(draggingElement);
+            } else {
+                todoDiv.insertBefore(draggingElement, afterElement);
+            }
+        });
+
+        todoDiv.addEventListener('dragenter', (event) => {
+            event.preventDefault();
+            const draggingElement = document.querySelector('.dragging');
+            if (event.target.classList.contains('todo') && event.target !== draggingElement) {
+                event.target.classList.add('over');
+            }
+        });
+
+        todoDiv.addEventListener('dragleave', (event) => {
+            event.preventDefault();
+            if (event.target.classList.contains('todo')) {
+                event.target.classList.remove('over');
+            }
         });
 
         todoDiv.addEventListener('drop', (event) => {
-            event.preventDefault(); // Prevent default drop behavior
-
-            // Ensure lastDraggedTodo exists and update its text content with dropped data
-            if (lastDraggedTodo) {
-                const droppedIndex = Array.from(todoDiv.children).indexOf(event.target); // Get the index of the drop target
-
-                // Reorder todos by inserting lastDraggedTodo at the dropped index
-                if (droppedIndex !== -1) {
-                    const todos = Array.from(todoDiv.children);
-                    const draggedElement = todos.splice(lastDraggedTodoIndex, 1)[0];
-                    todos.splice(droppedIndex, 0, draggedElement);
-
-                    // Re-append todos in the new order
-                    todoDiv.innerHTML = ''; // Clear existing todos
-                    todos.forEach(todo => todoDiv.appendChild(todo));
-                }
-
-                lastDraggedTodo.style.opacity = ''; // Reset opacity of last dragged todo
-                lastDraggedTodo = null; // Reset last dragged todo
+            event.preventDefault();
+            const draggingElement = document.querySelector('.dragging');
+            if (event.target.classList.contains('todo')) {
+                event.target.classList.remove('over');
             }
+            draggedElement = null;
         });
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.todo:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
 
         const todoExist = (todoText) => {
             let todos = todoDiv.querySelectorAll('.todo h3');
